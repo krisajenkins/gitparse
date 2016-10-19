@@ -2,15 +2,17 @@
 {-# LANGUAGE RecordWildCards   #-}
 module Lib where
 
-
 import           Codec.Compression.Zlib
 import           Data.ByteString.Lazy.Char8 as LBS
 import           Data.Maybe
 import           Data.Text                  as T
+import           Data.Text.Encoding
 import           Data.Text.IO               as T
 import           System.Console.ANSI
 import           Text.Megaparsec            as P
 
+projectPath :: Text
+projectPath = "/Users/kris/Work/WLHN/gitparse/"
 
 type Hash = Text
 
@@ -44,16 +46,13 @@ objectParser = do
     return
         (Commit
          { ..
-         }) -- TODO
-
-master :: Hash
-master = "3ae4528c3039e366bc2577f28187f6fb128374fa"
+         })
 
 readHash :: Hash -> IO LBS.ByteString
 readHash hash = decompress <$> (LBS.readFile (pathForHash hash))
 
-parseHash :: Hash -> IO ()
-parseHash hash = do
+gitLog :: Hash -> IO ()
+gitLog hash = do
     contents <- readHash hash
     let maybeCommit = parse objectParser (T.unpack hash) contents
     case maybeCommit of
@@ -68,16 +67,22 @@ parseHash hash = do
                     setSGR [SetColor Foreground Vivid Red]
                     Prelude.putStrLn "Done."
                     setSGR [Reset]
-                Just parent -> parseHash parent
+                Just parent -> gitLog parent
 
 pathForHash :: Hash -> FilePath
 pathForHash hash =
-  T.unpack $
-        mconcat
-            [ "/Users/kris/Work/WLHN/gitparse/.git/objects/"
-            , T.take 2 hash
-            , "/"
-            , T.drop 2 hash]
+    T.unpack $
+    mconcat [projectPath, ".git/objects/", T.take 2 hash, "/", T.drop 2 hash]
+
+pathForBranch :: Text -> FilePath
+pathForBranch branchName =
+    T.unpack $
+    mconcat [projectPath, ".git/refs/heads/", branchName]
+
+hashForBranch :: Text -> IO Hash
+hashForBranch branchName =
+    decodeUtf8 . LBS.toStrict . LBS.take 40 <$>
+    LBS.readFile (pathForBranch branchName)
 
 someFunc :: IO ()
-someFunc = parseHash master
+someFunc = hashForBranch "master" >>= gitLog
