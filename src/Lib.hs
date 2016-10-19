@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Lib where
+module Lib (logMaster) where
 
 import           Codec.Compression.Zlib
 import           Data.ByteString.Lazy.Char8 as LBS
@@ -99,5 +99,5 @@ gitLog hash = do
 
 ------------------------------------------------------------
 
-someFunc :: IO ()
-someFunc = hashForBranch "master" >>= gitLog
+logMaster :: IO ()
+logMaster = hashForBranch "master" >>= gitLog
