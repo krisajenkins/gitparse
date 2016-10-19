@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Lib where
 
 import           Codec.Compression.Zlib
@@ -11,7 +12,8 @@ type Hash = Text
 
 data Object = Commit
     { tree    :: Hash
-    , parent  :: [Hash]
+    , parents :: [Hash]
+    , headers :: LBS.ByteString
     , message :: LBS.ByteString
     } deriving (Show, Eq)
 
@@ -31,13 +33,18 @@ objectParser = do
     _ <- string "commit "
     _ <- some digitChar
     _ <- string "\000"
-    treeHash <- taggedHashParser "tree"
+    tree <- taggedHashParser "tree"
     parents <- many (taggedHashParser "parent")
-    rest <- LBS.pack <$> (many anyChar <* eof)
-    return (Commit treeHash parents rest) -- TODO
+    headers <- LBS.pack <$> (manyTill anyChar (string "\n\n"))
+    message <- LBS.pack <$> (many anyChar <* eof)
+    return
+        (Commit
+         { ..
+         }) -- TODO
 
 master :: Hash
-master = "9107febd65c3eb17eee16628fbd748d545b463a1"
+--master = "9107febd65c3eb17eee16628fbd748d545b463a1"
+master = "7d10b9ae7f44a57b286ec2a69a33b0ba0d244cbc"
 
 readHash :: Hash -> IO LBS.ByteString
 readHash hash = decompress <$> (LBS.readFile (pathForHash hash))
