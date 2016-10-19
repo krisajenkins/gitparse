@@ -4,7 +4,9 @@ module Lib where
 
 import           Codec.Compression.Zlib
 import           Data.ByteString.Lazy.Char8 as LBS
+import           Data.Maybe
 import           Data.Text                  as T
+import           Data.Text.IO               as T
 import           Text.Megaparsec            as P
 
 
@@ -43,16 +45,23 @@ objectParser = do
          }) -- TODO
 
 master :: Hash
---master = "9107febd65c3eb17eee16628fbd748d545b463a1"
-master = "7d10b9ae7f44a57b286ec2a69a33b0ba0d244cbc"
+master = "3ae4528c3039e366bc2577f28187f6fb128374fa"
 
 readHash :: Hash -> IO LBS.ByteString
 readHash hash = decompress <$> (LBS.readFile (pathForHash hash))
 
-parseHash :: Hash -> IO (Either ParseError Object)
+parseHash :: Hash -> IO ()
 parseHash hash = do
     contents <- readHash hash
-    return (parse objectParser (T.unpack hash) contents)
+    let maybeCommit = parse objectParser (T.unpack hash) contents
+    case maybeCommit of
+        Left err -> print err
+        Right commit -> do
+            T.putStrLn hash
+            LBS.putStrLn (message commit)
+            case listToMaybe (parents commit) of
+                Nothing -> Prelude.putStrLn "Done."
+                Just parent -> parseHash parent
 
 pathForHash :: Hash -> FilePath
 pathForHash hash =
@@ -64,4 +73,4 @@ pathForHash hash =
             , T.drop 2 hash]
 
 someFunc :: IO ()
-someFunc = parseHash master >>= print
+someFunc = parseHash master
