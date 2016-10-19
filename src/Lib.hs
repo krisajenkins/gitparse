@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Lib (logMaster) where
+module Lib
+  ( logMaster
+  ) where
 
 import           Codec.Compression.Zlib
 import           Data.ByteString.Lazy.Char8 as LBS
@@ -24,11 +26,14 @@ data Object = Commit
     } deriving (Show, Eq)
 
 ------------------------------------------------------------
-
-hashParser :: Parsec ByteString Hash
+hashParser
+    :: Monad m
+    => ParsecT ByteString m Hash
 hashParser = T.pack <$> P.count 40 hexDigitChar
 
-taggedHashParser :: String -> Parsec ByteString Hash
+taggedHashParser
+    :: Monad m
+    => String -> ParsecT ByteString m Hash
 taggedHashParser tag =
     (do _ <- string tag
         _ <- string " "
@@ -37,22 +42,25 @@ taggedHashParser tag =
         return hash) <?>
     tag
 
-objectParser :: Hash -> Parsec ByteString Object
+objectParser
+    :: Monad m
+    => Hash -> ParsecT ByteString m Object
 objectParser objectId = do
     _ <- string "commit "
     _ <- some digitChar
     _ <- string "\000"
     tree <- taggedHashParser "tree"
     parents <- many (taggedHashParser "parent")
-    headers <- LBS.pack <$> (manyTill anyChar (string "\n\n"))
-    message <- LBS.pack <$> (many anyChar <* eof)
+    headers <- LBS.pack <$> manyTill anyChar (string "\n\n")
+    message <- LBS.pack <$> many anyChar <* eof
     return
-        (Commit
-         { ..
-         })
+        Commit
+        { ..
+        }
 
 getObject :: Hash -> IO (Either ParseError Object)
-getObject hash = parse (objectParser hash) (T.unpack hash) <$> readHash hash
+getObject hash =
+    readHash hash >>= runParserT (objectParser hash) (T.unpack hash)
 
 ------------------------------------------------------------
 readHash :: Hash -> IO LBS.ByteString
@@ -72,17 +80,16 @@ pathForHash hash currentDirectory =
 
 pathForBranch :: Text -> FilePath -> FilePath
 pathForBranch branchName currentDirectory =
-    T.unpack $ mconcat [T.pack currentDirectory, "/.git/refs/heads/", branchName]
+    T.unpack $
+    mconcat [T.pack currentDirectory, "/.git/refs/heads/", branchName]
 
 hashForBranch :: Text -> IO Hash
 hashForBranch branchName = do
     currentDirectory <- getCurrentDirectory
     let branchPath = pathForBranch branchName currentDirectory
-    print branchPath
     decodeUtf8 . LBS.toStrict . LBS.take 40 <$> LBS.readFile branchPath
 
 ------------------------------------------------------------
-
 printObject :: Object -> IO ()
 printObject object = do
     setSGR [SetColor Foreground Vivid Blue]
@@ -105,6 +112,5 @@ gitLog hash = do
                     setSGR [Reset]
 
 ------------------------------------------------------------
-
 logMaster :: IO ()
 logMaster = hashForBranch "master" >>= gitLog
