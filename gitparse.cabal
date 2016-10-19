@@ -21,6 +21,7 @@ library
                      , zlib
                      , bytestring
                      , megaparsec
+                     , ansi-terminal
   default-language:    Haskell2010
 
 executable gitparse-exe

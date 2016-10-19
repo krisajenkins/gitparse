@@ -2,11 +2,13 @@
 {-# LANGUAGE RecordWildCards   #-}
 module Lib where
 
+
 import           Codec.Compression.Zlib
 import           Data.ByteString.Lazy.Char8 as LBS
 import           Data.Maybe
 import           Data.Text                  as T
 import           Data.Text.IO               as T
+import           System.Console.ANSI
 import           Text.Megaparsec            as P
 
 
@@ -57,10 +59,15 @@ parseHash hash = do
     case maybeCommit of
         Left err -> print err
         Right commit -> do
+            setSGR [SetColor Foreground Vivid Blue]
             T.putStrLn hash
+            setSGR [Reset]
             LBS.putStrLn (message commit)
             case listToMaybe (parents commit) of
-                Nothing -> Prelude.putStrLn "Done."
+                Nothing -> do
+                    setSGR [SetColor Foreground Vivid Red]
+                    Prelude.putStrLn "Done."
+                    setSGR [Reset]
                 Just parent -> parseHash parent
 
 pathForHash :: Hash -> FilePath
