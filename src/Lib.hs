@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+
 module Lib where
 
 import           Codec.Compression.Zlib
@@ -17,25 +18,29 @@ projectPath = "/Users/kris/Work/WLHN/gitparse/"
 type Hash = Text
 
 data Object = Commit
-    { tree    :: Hash
-    , parents :: [Hash]
-    , headers :: LBS.ByteString
-    , message :: LBS.ByteString
+    { objectId :: Hash
+    , tree     :: Hash
+    , parents  :: [Hash]
+    , headers  :: LBS.ByteString
+    , message  :: LBS.ByteString
     } deriving (Show, Eq)
+
+------------------------------------------------------------
 
 hashParser :: Parsec ByteString Hash
 hashParser = T.pack <$> P.count 40 hexDigitChar
 
 taggedHashParser :: String -> Parsec ByteString Hash
-taggedHashParser tag = (do
-    _ <- string tag
-    _ <- string " "
-    hash <- hashParser
-    _ <- string "\n"
-    return hash) <?> tag
+taggedHashParser tag =
+    (do _ <- string tag
+        _ <- string " "
+        hash <- hashParser
+        _ <- string "\n"
+        return hash) <?>
+    tag
 
-objectParser :: Parsec ByteString Object
-objectParser = do
+objectParser :: Hash -> Parsec ByteString Object
+objectParser objectId = do
     _ <- string "commit "
     _ <- some digitChar
     _ <- string "\000"
@@ -48,26 +53,12 @@ objectParser = do
          { ..
          })
 
+getObject :: Hash -> IO (Either ParseError Object)
+getObject hash = parse (objectParser hash) (T.unpack hash) <$> readHash hash
+
+------------------------------------------------------------
 readHash :: Hash -> IO LBS.ByteString
 readHash hash = decompress <$> (LBS.readFile (pathForHash hash))
-
-gitLog :: Hash -> IO ()
-gitLog hash = do
-    contents <- readHash hash
-    let maybeCommit = parse objectParser (T.unpack hash) contents
-    case maybeCommit of
-        Left err -> print err
-        Right commit -> do
-            setSGR [SetColor Foreground Vivid Blue]
-            T.putStrLn hash
-            setSGR [Reset]
-            LBS.putStrLn (message commit)
-            case listToMaybe (parents commit) of
-                Nothing -> do
-                    setSGR [SetColor Foreground Vivid Red]
-                    Prelude.putStrLn "Done."
-                    setSGR [Reset]
-                Just parent -> gitLog parent
 
 pathForHash :: Hash -> FilePath
 pathForHash hash =
@@ -76,13 +67,37 @@ pathForHash hash =
 
 pathForBranch :: Text -> FilePath
 pathForBranch branchName =
-    T.unpack $
-    mconcat [projectPath, ".git/refs/heads/", branchName]
+    T.unpack $ mconcat [projectPath, ".git/refs/heads/", branchName]
 
 hashForBranch :: Text -> IO Hash
 hashForBranch branchName =
     decodeUtf8 . LBS.toStrict . LBS.take 40 <$>
     LBS.readFile (pathForBranch branchName)
+
+------------------------------------------------------------
+
+printObject :: Object -> IO ()
+printObject object = do
+    setSGR [SetColor Foreground Vivid Blue]
+    T.putStrLn (objectId object)
+    setSGR [Reset]
+    LBS.putStrLn (message object)
+
+gitLog :: Hash -> IO ()
+gitLog hash = do
+    result <- getObject hash
+    case result of
+        Left err -> print err
+        Right object -> do
+            printObject object
+            case listToMaybe (parents object) of
+                Just parent -> gitLog parent
+                Nothing -> do
+                    setSGR [SetColor Foreground Vivid Red]
+                    Prelude.putStrLn "Done."
+                    setSGR [Reset]
+
+------------------------------------------------------------
 
 someFunc :: IO ()
 someFunc = hashForBranch "master" >>= gitLog
