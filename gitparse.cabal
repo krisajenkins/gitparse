@@ -17,6 +17,10 @@ library
   hs-source-dirs:      src
   exposed-modules:     Lib
   build-depends:       base >= 4.7 && < 5
+                     , text
+                     , zlib
+                     , bytestring
+                     , megaparsec
   default-language:    Haskell2010
 
 executable gitparse-exe
