@@ -61,8 +61,7 @@ objectParser objectId = do
         }
 
 getObject :: Hash -> IO (Either ParseError Object)
-getObject hash =
-    readHash hash >>= runParserT (objectParser hash) (show hash)
+getObject hash = readHash hash >>= runParserT (objectParser hash) (show hash)
 
 ------------------------------------------------------------
 readHash :: Hash -> IO LBS.ByteString
@@ -108,7 +107,6 @@ printObject :: Object -> IO ()
 printObject object = do
     red . unHash $ objectId object
     LBS.putStrLn $ message object
-
 
 gitLog :: Hash -> IO ()
 gitLog hash = do
