@@ -8,3 +8,8 @@ Written in 90 minutes for October 2016's [West London Hack Night](http://www.mee
 stack build
 stack exec gitparse
 ```
+
+## Co-Conspiritors
+
+* [James Deery](https://github.com/derkyjadex)
+* [Ben Sima](https://github.com/bsima)
