@@ -15,7 +15,9 @@ import           System.Console.ANSI
 import           System.Directory
 import           Text.Megaparsec            as P
 
-type Hash = Text
+newtype Hash = Hash
+    { unHash :: Text
+    } deriving (Show, Eq)
 
 data Object = Commit
     { objectId :: Hash
@@ -29,7 +31,7 @@ data Object = Commit
 hashParser
     :: Monad m
     => ParsecT ByteString m Hash
-hashParser = T.pack <$> P.count 40 hexDigitChar
+hashParser = Hash . T.pack <$> P.count 40 hexDigitChar
 
 taggedHashParser
     :: Monad m
@@ -60,7 +62,7 @@ objectParser objectId = do
 
 getObject :: Hash -> IO (Either ParseError Object)
 getObject hash =
-    readHash hash >>= runParserT (objectParser hash) (T.unpack hash)
+    readHash hash >>= runParserT (objectParser hash) (show hash)
 
 ------------------------------------------------------------
 readHash :: Hash -> IO LBS.ByteString
@@ -74,9 +76,9 @@ pathForHash hash currentDirectory =
     mconcat
         [ T.pack currentDirectory
         , "/.git/objects/"
-        , T.take 2 hash
+        , T.take 2 (unHash hash)
         , "/"
-        , T.drop 2 hash]
+        , T.drop 2 (unHash hash)]
 
 pathForBranch :: Text -> FilePath -> FilePath
 pathForBranch branchName currentDirectory =
@@ -87,15 +89,26 @@ hashForBranch :: Text -> IO Hash
 hashForBranch branchName = do
     currentDirectory <- getCurrentDirectory
     let branchPath = pathForBranch branchName currentDirectory
-    decodeUtf8 . LBS.toStrict . LBS.take 40 <$> LBS.readFile branchPath
+    Hash . decodeUtf8 . LBS.toStrict . LBS.take 40 <$> LBS.readFile branchPath
 
 ------------------------------------------------------------
+red :: Text -> IO ()
+red msg = do
+    setSGR [SetColor Foreground Vivid Blue]
+    T.putStrLn msg
+    setSGR [Reset]
+
+blue :: Text -> IO ()
+blue msg = do
+    setSGR [SetColor Foreground Vivid Red]
+    T.putStrLn msg
+    setSGR [Reset]
+
 printObject :: Object -> IO ()
 printObject object = do
-    setSGR [SetColor Foreground Vivid Blue]
-    T.putStrLn (objectId object)
-    setSGR [Reset]
-    LBS.putStrLn (message object)
+    red . unHash $ objectId object
+    LBS.putStrLn $ message object
+
 
 gitLog :: Hash -> IO ()
 gitLog hash = do
@@ -106,10 +119,7 @@ gitLog hash = do
             printObject object
             case listToMaybe (parents object) of
                 Just parent -> gitLog parent
-                Nothing -> do
-                    setSGR [SetColor Foreground Vivid Red]
-                    Prelude.putStrLn "Done."
-                    setSGR [Reset]
+                Nothing -> blue "Done."
 
 ------------------------------------------------------------
 logMaster :: IO ()
